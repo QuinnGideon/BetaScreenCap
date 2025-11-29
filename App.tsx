@@ -110,11 +110,62 @@ export default function App() {
     }
   }, [isCameraOn, stopCamera]);
 
+  const playShutterSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      
+      const t = ctx.currentTime;
+      
+      // 1. High frequency snap
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.frequency.setValueAtTime(800, t);
+      osc.frequency.exponentialRampToValueAtTime(1200, t + 0.05);
+      osc.type = 'sine';
+      
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(t);
+      osc.stop(t + 0.1);
+      
+      // 2. White noise burst (mechanical feel)
+      const bufferSize = ctx.sampleRate * 0.1; // 0.1s
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.1, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      
+      noise.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noise.start(t);
+
+    } catch (e) {
+      console.warn("Audio context failed for shutter", e);
+    }
+  };
+
   const handleCapture = useCallback(async () => {
     try {
       setMode(AppMode.IDLE);
       await new Promise(r => setTimeout(r, 100));
       const blob = await captureScreen();
+      
+      // Provide feedback
+      playShutterSound();
+      
       const url = URL.createObjectURL(blob);
       setMedia({ type: 'image', url, blob });
       setMode(AppMode.QUICK_ACCESS);

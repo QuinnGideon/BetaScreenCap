@@ -1,4 +1,5 @@
 
+
 // Add declaration for experimental ImageCapture API
 declare class ImageCapture {
   constructor(track: MediaStreamTrack);
