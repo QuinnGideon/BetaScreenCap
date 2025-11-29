@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { QuickAccess } from './components/QuickAccess';
@@ -118,10 +119,14 @@ export default function App() {
       setMedia({ type: 'image', url, blob });
       setMode(AppMode.QUICK_ACCESS);
     } catch (e) {
-      console.error("Capture cancelled or failed", e);
-      if ((e as Error).name !== 'NotAllowedError') {
-          alert("Could not capture screen.");
+      const error = e as Error;
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          console.debug("Capture cancelled by user");
+          return;
       }
+      
+      console.error("Capture failed", e);
+      alert("Could not capture screen.");
     }
   }, []);
 
@@ -130,17 +135,44 @@ export default function App() {
     setMedia(newMedia);
   };
 
+  const playCountdownBeep = (frequency: number) => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      osc.type = 'sine';
+      
+      // Short, distinct beep
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch (e) {
+      console.warn("Audio context failed for beep", e);
+    }
+  };
+
   const startCountdown = async (): Promise<void> => {
       return new Promise(resolve => {
           setCountdown(3);
+          playCountdownBeep(880); // A5
           let count = 3;
           const timer = setInterval(() => {
               count--;
               if (count > 0) {
                   setCountdown(count);
+                  playCountdownBeep(880); // A5
               } else {
                   clearInterval(timer);
                   setCountdown(null);
+                  playCountdownBeep(1760); // A6 (High pitch for "Go")
                   resolve();
               }
           }, 1000);
@@ -444,7 +476,7 @@ export default function App() {
       {/* Countdown Overlay */}
       {countdown !== null && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <div className="text-9xl font-bold text-white animate-bounce drop-shadow-2xl">
+              <div className="text-9xl font-bold text-white animate-pulse drop-shadow-2xl">
                   {countdown}
               </div>
           </div>

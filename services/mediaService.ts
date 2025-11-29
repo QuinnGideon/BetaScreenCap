@@ -1,3 +1,4 @@
+
 // Add declaration for experimental ImageCapture API
 declare class ImageCapture {
   constructor(track: MediaStreamTrack);
@@ -66,9 +67,15 @@ export const captureScreen = async (): Promise<Blob> => {
     return await canvasToBlob(canvas);
 
   } catch (error) {
+    const err = error as Error;
+    // Don't log error if user simply cancelled the prompt
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        throw error;
+    }
+
     console.error("Error capturing screen:", error);
     if (stream) {
-      stream.getTracks().forEach(t => t.stop());
+      (stream as MediaStream).getTracks().forEach(t => t.stop());
     }
     throw error;
   }
