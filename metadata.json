@@ -1,0 +1,9 @@
+{
+  "name": "BetaScreenCap",
+  "description": "A powerful, native-feeling screen capture and recording tool for the web, inspired by CleanShot X. Features annotation, OCR, and instant editing.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ]
+}
