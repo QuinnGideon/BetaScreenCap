@@ -1,3 +1,4 @@
+
 export enum AppMode {
   IDLE = 'IDLE',
   RECORDING = 'RECORDING',
@@ -40,6 +41,7 @@ export interface DrawingElement {
   lineWidth?: number;
   // New properties
   borderStyle?: 'solid' | 'dashed' | 'none'; // 'none' implies filled
+  borderRadius?: number;
   fontSize?: number;
   blurIntensity?: number;
   rotation?: number; // Radians

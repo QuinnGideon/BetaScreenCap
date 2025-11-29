@@ -21,7 +21,7 @@ export default function App() {
   // Settings
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({
-    useCountdown: false, // Default off for speed, can be enabled
+    useCountdown: true, // Enabled by default
     preferMp4: true,
   });
 
@@ -152,6 +152,11 @@ export default function App() {
       noiseGain.connect(ctx.destination);
       noise.start(t);
 
+      // Clean up after sound
+      setTimeout(() => {
+        if (ctx.state !== 'closed') ctx.close();
+      }, 200);
+
     } catch (e) {
       console.warn("Audio context failed for shutter", e);
     }
@@ -205,6 +210,11 @@ export default function App() {
       
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
+
+      // Clean up
+      setTimeout(() => {
+        if (ctx.state !== 'closed') ctx.close();
+      }, 250);
     } catch (e) {
       console.warn("Audio context failed for beep", e);
     }

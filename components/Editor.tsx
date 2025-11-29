@@ -1,9 +1,10 @@
+
 import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { 
   ArrowRight, Type, Square, Pen, Crop, Download, X, 
   Copy, Check, Highlighter, CircleDot, Monitor, 
   ZoomIn, ZoomOut, Maximize, Undo, Redo, MousePointer2,
-  BoxSelect, Minus, Plus, EyeOff, RotateCw
+  BoxSelect, Minus, Plus, EyeOff, RotateCw, CornerUpLeft
 } from 'lucide-react';
 import { CapturedMedia, ToolType, DrawingElement } from '../types';
 
@@ -132,16 +133,24 @@ const drawElement = (ctx: CanvasRenderingContext2D, el: DrawingElement, bgImg?: 
          ctx.lineWidth = 4;
     }
     else if (el.type === ToolType.RECTANGLE) {
+        ctx.beginPath();
+        const r = el.borderRadius || 0;
+        if ((ctx as any).roundRect) {
+            (ctx as any).roundRect(el.x, el.y, el.width || 0, el.height || 0, r);
+        } else {
+             ctx.rect(el.x, el.y, el.width || 0, el.height || 0);
+        }
+
         if (el.borderStyle === 'none') {
             ctx.globalAlpha = 1.0; 
-            ctx.fillRect(el.x, el.y, el.width || 0, el.height || 0);
+            ctx.fill();
         } else {
             if (el.borderStyle === 'dashed') {
                 ctx.setLineDash([12, 8]);
             } else {
                 ctx.setLineDash([]);
             }
-            ctx.strokeRect(el.x, el.y, el.width || 0, el.height || 0);
+            ctx.stroke();
             ctx.setLineDash([]); 
         }
     } 
@@ -231,6 +240,7 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
   // Tool Specific States
   const [fontSize, setFontSize] = useState(24);
   const [borderStyle, setBorderStyle] = useState<'solid' | 'dashed' | 'none'>('solid');
+  const [borderRadius, setBorderRadius] = useState(0);
   const [blurIntensity, setBlurIntensity] = useState(16);
 
   // Selection & Transform State
@@ -270,7 +280,10 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
         const el = elements.find(e => e.id === selectedId);
         if (el) {
             if (el.type === ToolType.TEXT && el.fontSize) setFontSize(el.fontSize);
-            if (el.type === ToolType.RECTANGLE && el.borderStyle) setBorderStyle(el.borderStyle);
+            if (el.type === ToolType.RECTANGLE) {
+               if (el.borderStyle) setBorderStyle(el.borderStyle);
+               if (el.borderRadius !== undefined) setBorderRadius(el.borderRadius);
+            }
             if (el.type === ToolType.BLUR) setBlurIntensity(el.blurIntensity || 16);
             setColor(el.color);
         }
@@ -363,6 +376,12 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
   const handleBorderStyleChange = (style: 'solid' | 'dashed' | 'none') => {
     setBorderStyle(style);
     if (selectedId) updateSelectedProperty({ borderStyle: style });
+  };
+
+  const handleBorderRadiusChange = (val: number) => {
+    const r = Math.max(0, val);
+    setBorderRadius(r);
+    if (selectedId) updateSelectedProperty({ borderRadius: r });
   };
 
   const handleColorChange = (c: string) => {
@@ -703,6 +722,11 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
         number: nextNum
       };
       saveToHistory([...elements, newEl]);
+      
+      // Auto-select for immediate editing
+      setSelectedId(newEl.id);
+      setSelectedTool(ToolType.SELECT);
+      
       setIsDrawing(false);
       return;
     }
@@ -722,6 +746,7 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
       points: (selectedTool === ToolType.PEN || selectedTool === ToolType.HIGHLIGHTER) ? [{x, y}] : undefined,
       lineWidth: selectedTool === ToolType.HIGHLIGHTER ? 20 : 4,
       borderStyle: selectedTool === ToolType.RECTANGLE ? borderStyle : undefined,
+      borderRadius: selectedTool === ToolType.RECTANGLE ? borderRadius : undefined,
       blurIntensity: selectedTool === ToolType.BLUR ? blurIntensity : undefined,
     });
   };
@@ -867,8 +892,17 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
     if (selectedTool === ToolType.CROP) return;
 
     if (currentElement) {
-      saveToHistory([...elements, currentElement]);
+      const newEl = currentElement;
+      const newElements = [...elements, newEl];
+      saveToHistory(newElements);
       setCurrentElement(null);
+
+      // Auto-select the newly drawn element for immediate editing
+      // Exclude Pen/Highlighter to allow continuous drawing
+      if (newEl.type !== ToolType.PEN && newEl.type !== ToolType.HIGHLIGHTER) {
+          setSelectedId(newEl.id);
+          setSelectedTool(ToolType.SELECT);
+      }
     }
   };
 
@@ -1009,17 +1043,17 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
                 <div className="h-6 w-px bg-gray-700" />
 
                 <div className="flex items-center gap-1 md:gap-2">
-                    <ToolButton icon={MousePointer2} label="Select" active={selectedTool === ToolType.SELECT} onClick={() => setSelectedTool(ToolType.SELECT)} />
+                    <ToolButton icon={MousePointer2} label="Select" active={selectedTool === ToolType.SELECT} onClick={() => { setSelectedTool(ToolType.SELECT); setSelectedId(null); }} />
                     <div className="h-4 w-px bg-gray-700 mx-1" />
-                    <ToolButton icon={ArrowRight} label="Arrow" active={selectedTool === ToolType.ARROW} onClick={() => setSelectedTool(ToolType.ARROW)} />
-                    <ToolButton icon={Square} label="Rect" active={selectedTool === ToolType.RECTANGLE} onClick={() => setSelectedTool(ToolType.RECTANGLE)} />
-                    <ToolButton icon={Type} label="Text" active={selectedTool === ToolType.TEXT} onClick={() => setSelectedTool(ToolType.TEXT)} />
-                    <ToolButton icon={Pen} label="Draw" active={selectedTool === ToolType.PEN} onClick={() => setSelectedTool(ToolType.PEN)} />
-                    <ToolButton icon={Highlighter} label="Highlight" active={selectedTool === ToolType.HIGHLIGHTER} onClick={() => setSelectedTool(ToolType.HIGHLIGHTER)} />
-                    <ToolButton icon={CircleDot} label="Steps" active={selectedTool === ToolType.COUNTER} onClick={() => setSelectedTool(ToolType.COUNTER)} />
-                    <ToolButton icon={EyeOff} label="Blur" active={selectedTool === ToolType.BLUR} onClick={() => setSelectedTool(ToolType.BLUR)} />
+                    <ToolButton icon={ArrowRight} label="Arrow" active={selectedTool === ToolType.ARROW} onClick={() => { setSelectedTool(ToolType.ARROW); setSelectedId(null); }} />
+                    <ToolButton icon={Square} label="Rect" active={selectedTool === ToolType.RECTANGLE} onClick={() => { setSelectedTool(ToolType.RECTANGLE); setSelectedId(null); }} />
+                    <ToolButton icon={Type} label="Text" active={selectedTool === ToolType.TEXT} onClick={() => { setSelectedTool(ToolType.TEXT); setSelectedId(null); }} />
+                    <ToolButton icon={Pen} label="Draw" active={selectedTool === ToolType.PEN} onClick={() => { setSelectedTool(ToolType.PEN); setSelectedId(null); }} />
+                    <ToolButton icon={Highlighter} label="Highlight" active={selectedTool === ToolType.HIGHLIGHTER} onClick={() => { setSelectedTool(ToolType.HIGHLIGHTER); setSelectedId(null); }} />
+                    <ToolButton icon={CircleDot} label="Steps" active={selectedTool === ToolType.COUNTER} onClick={() => { setSelectedTool(ToolType.COUNTER); setSelectedId(null); }} />
+                    <ToolButton icon={EyeOff} label="Blur" active={selectedTool === ToolType.BLUR} onClick={() => { setSelectedTool(ToolType.BLUR); setSelectedId(null); }} />
                     <div className="h-4 w-px bg-gray-700 mx-1" />
-                    <ToolButton icon={Crop} label="Crop" active={selectedTool === ToolType.CROP} onClick={() => setSelectedTool(ToolType.CROP)} />
+                    <ToolButton icon={Crop} label="Crop" active={selectedTool === ToolType.CROP} onClick={() => { setSelectedTool(ToolType.CROP); setSelectedId(null); }} />
                 </div>
 
                 {/* Contextual Tool Options */}
@@ -1036,6 +1070,19 @@ export const Editor: React.FC<EditorProps> = ({ media, onClose, onSave, onUpdate
                         <button onClick={() => handleBorderStyleChange('none')} className={`p-1.5 rounded transition-colors ${borderStyle === 'none' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`} title="Filled (No Border)">
                             <Square fill="currentColor" className="w-4 h-4" />
                         </button>
+                    </div>
+                    <div className="flex items-center gap-2 bg-gray-900 p-1 px-3 rounded-lg border border-gray-800 ml-2">
+                        <span className="text-[10px] uppercase font-bold text-gray-500">Radius</span>
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            step="4"
+                            value={borderRadius} 
+                            onChange={(e) => handleBorderRadiusChange(parseInt(e.target.value))}
+                            className="w-24 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        />
+                        <span className="text-xs font-mono w-6 text-right text-gray-300">{borderRadius}</span>
                     </div>
                     </>
                 )}
