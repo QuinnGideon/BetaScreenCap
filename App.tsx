@@ -343,6 +343,13 @@ export default function App() {
                     const camY = y * scaleY;
                     const camSize = size * scaleX; 
 
+                    // FIX: Calculate center crop to prevent stretching
+                    const vidW = cameraEl.videoWidth;
+                    const vidH = cameraEl.videoHeight;
+                    const cropSize = Math.min(vidW, vidH);
+                    const sx = (vidW - cropSize) / 2;
+                    const sy = (vidH - cropSize) / 2;
+
                     ctx.save();
                     ctx.beginPath();
                     ctx.arc(camX + camSize/2, camY + camSize/2, camSize/2, 0, Math.PI * 2);
@@ -350,7 +357,13 @@ export default function App() {
                     
                     ctx.translate(camX + camSize, camY);
                     ctx.scale(-1, 1);
-                    ctx.drawImage(cameraEl, 0, 0, camSize, camSize);
+                    
+                    // Draw the center-cropped square from the video source
+                    ctx.drawImage(
+                        cameraEl, 
+                        sx, sy, cropSize, cropSize, // Source: Center crop
+                        0, 0, camSize, camSize      // Dest: Square bubble
+                    );
                     ctx.restore();
                     
                     ctx.beginPath();
